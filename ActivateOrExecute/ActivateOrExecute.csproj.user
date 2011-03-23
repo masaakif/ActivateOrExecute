@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <StartArguments>-command="calc.exe"</StartArguments>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <StartArguments>-classname=vim -title=XiliXConfiger.xml -command="J:/Applications/PortableApps/gvimPortable/gVimPortable.exe" -arguments="\"J:/developments/Visual Studio 2008/Projects/XiliXConfiger/XiliXConfiger/bin/Debug/XiliXConfiger.xml\"" -verbose=true</StartArguments>
+  </PropertyGroup>
+</Project>
