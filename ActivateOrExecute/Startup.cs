@@ -5,32 +5,14 @@ using System.Text;
 //using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
+using WindowsAPIs;
 
 namespace ActivateOrExecute
 {
     class Startup
     {
-        [DllImport("user32.dll")]
-        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, ref uint procId);
-
-        // コールバックメソッドのデリゲート
-        private delegate int EnumerateWindowsCallback(IntPtr hWnd, int lParam);
-
-        [DllImport("user32", EntryPoint = "EnumWindows")]
-        private static extern int EnumWindows(EnumerateWindowsCallback lpEnumFunc, int lParam);
-
-        [DllImport("User32.Dll", CharSet = CharSet.Unicode)]
-        static extern int GetWindowText(IntPtr hWnd, StringBuilder s, int nMaxCount);
-
-        [DllImport("User32.Dll", CharSet = CharSet.Unicode)]
-        public static extern int GetClassName(IntPtr hWnd, StringBuilder s, int nMaxCount);
-
-        [DllImport("User32.dll", CharSet = CharSet.Unicode)]
-        static extern IntPtr FindWindow(string lpszClass, string lpszWindow);
- 
         private static Utils u = new Utils();
         
-
         /*
          * args
          * 
@@ -65,60 +47,25 @@ namespace ActivateOrExecute
                     u.verbose = arg.Substring(9, arg.Length - 9);
                 }
             }
-
             
-            //u.className = "vim".ToLower() ;
-            //u.title = "parsed";
-
             if (u.className != "" || u.title != "")
             {
-                EnumWindows(new EnumerateWindowsCallback(Startup.EnumerateWindows), 0);
+                u.FindThenExecute(callback);
             }
 
             u.ExecuteCommand();
         }
 
-        public static int EnumerateWindows(IntPtr hWnd, int lParam)
+        public static int callback(Utils u2, IntPtr hWnd, StringBuilder sbClassName, StringBuilder sbWindowText)
         {
-            uint procId = 0;
-            uint result = GetWindowThreadProcessId(hWnd, ref procId);
-            StringBuilder sbClassName = new StringBuilder(256);
-            StringBuilder sbWindowText = new StringBuilder(256);
-            GetClassName(hWnd, sbClassName, sbClassName.Capacity);
-            GetWindowText(hWnd, sbWindowText, sbWindowText.Capacity);
-
-            bool isClassExist = false;
-            bool isTitleExist = false;
-
-            if (u.className == "")
+            if (u2.hasGUI(hWnd))
             {
-                isClassExist = true;
-            }
-            else if (sbClassName.ToString().ToLower().IndexOf(u.className) > -1)
-            {
-                isClassExist = true;
+                Debug.Write(hWnd);
+                Debug.WriteLine(" " + sbClassName.ToString() + " : " + sbWindowText.ToString());
+                u2.MoveWindowTop(hWnd);
+                u2.isRunning = true;
             }
 
-            if (u.title == "")
-            {
-                isTitleExist = true;
-            }
-            else if (sbWindowText.ToString().ToLower().IndexOf(u.title) > -1)
-            {
-                isTitleExist = true;
-            }
-
-            if (isClassExist && isTitleExist)
-            {
-                if (u.hasGUI(hWnd))
-                {
-                    Debug.Write(hWnd);
-                    Debug.WriteLine(" " + sbClassName.ToString() + " : " + sbWindowText.ToString());
-                    u.MoveWindowTop(hWnd);
-                    u.isRunning = true;
-                }
-            }
-            
             return 1;
         }
     }

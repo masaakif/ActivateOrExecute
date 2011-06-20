@@ -18,18 +18,46 @@ namespace WindowsAPIs
         [DllImport("User32.Dll", CharSet = CharSet.Unicode)]
         private static extern int GetWindowText(IntPtr hWnd, StringBuilder s, int nMaxCount);
 
+        [DllImport("User32.Dll", CharSet = CharSet.Unicode)]
+        public static extern int GetClassName(IntPtr hWnd, StringBuilder s, int nMaxCount);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, EntryPoint = "GetWindow",SetLastError = true)]
+        public static extern IntPtr GetNextWindow(IntPtr hwnd, [MarshalAs(UnmanagedType.U4)] int wFlag);
+
         [DllImport("user32.dll")]
-        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, ref uint lpdwProcessId);
+
+        // When you don't want the ProcessId, use this overload and pass IntPtr.Zero for the second parameter
+        [DllImport("user32.dll")]
+        static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr ProcessId);
 
         [DllImport("kernel32.dll")]
         private static extern IntPtr OpenProcess(UInt32 dwDesiredAccess, Int32 bInheritHandle, UInt32 dwProcessId);
 
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool CloseHandle(IntPtr hObject);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetTopWindow(IntPtr hWnd);
+
+        /* Enum Windows functions */
+        private delegate int EnumerateWindowsCallback(IntPtr hWnd, int lParam);
+
+        [DllImport("user32", EntryPoint = "EnumWindows")]
+        private static extern int EnumWindows(EnumerateWindowsCallback lpEnumFunc, int lParam);
+
+        public delegate int CallBackPtr(Utils u2, IntPtr hWnd, StringBuilder sbClassName, StringBuilder sbWindowText);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetGuiResources(IntPtr hObject, uint uiFlags);
+
         [DllImport("psapi.dll")]
         private static extern uint GetModuleFileNameEx(IntPtr hProcess, IntPtr hModule, [Out] StringBuilder lpBaseName, [In] [MarshalAs(UnmanagedType.U4)] int nSize);
-
-        [DllImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool CloseHandle(IntPtr hObject);
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -51,8 +79,18 @@ namespace WindowsAPIs
         private const uint WS_THICKFRAME = 0x00040000;
         private const uint WS_BORDER = 0x00800000;
         private const uint WS_DLGFRAME = 0x00400000;
+        
         private const int GWL_STYLE = -16;
+        private const int GWL_HWNDPARENT = -8;
+
+        private const uint GW_HWNDNEXT = 0x2;
+        private const uint GW_HWNDPREV = 0x3;
+
         public int SW_RESTORE = 9;
+
+        private const UInt32 PROCESS_QUERY_INFORMATION = 0x0400;
+        private const uint GR_GDIOBJECTS = 0;
+        private const uint GR_USEROBJECTS = 1;
 
         public string className = "";
         public string title = "";
@@ -156,7 +194,7 @@ namespace WindowsAPIs
 
             IntPtr hWnd = GetForegroundWindow();
             uint processId = 0;
-            GetWindowThreadProcessId(hWnd, out processId);
+            GetWindowThreadProcessId(hWnd, ref processId);
             IntPtr hProcess = OpenProcess(1040, 0, processId);
             GetModuleFileNameEx(hProcess, IntPtr.Zero, sb, nChars);
             CloseHandle(hProcess);
@@ -169,5 +207,102 @@ namespace WindowsAPIs
 
             return sb.ToString();
         }
+
+        public uint GetWindowHandle(uint targetPID)
+        {
+            uint hWnd = GetTopWindow((IntPtr)null);
+            while (hWnd != 0)
+            {
+                if (!IsWindowVisible((IntPtr)hWnd))
+                {
+                    hWnd = (uint)(GetNextWindow((IntPtr)hWnd, (int)GW_HWNDNEXT));
+                    continue;
+                }
+                uint processID = 0;
+                processID = GetWindowThreadProcessId((IntPtr)hWnd, ref processID);
+                if (targetPID == processID)
+                {
+                    return hWnd;
+                }
+                hWnd = (uint)(GetNextWindow((IntPtr)hWnd, (int)GW_HWNDNEXT));
+            }
+
+            return 0;            
+        }
+
+        public uint GetGDIObjects(UInt32 dwProcessId)
+        {
+            IntPtr hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, -1, dwProcessId);
+            if (hProcess != null)
+            {
+                uint cnt = GetGuiResources(hProcess, GR_GDIOBJECTS);
+                CloseHandle(hProcess);
+                return cnt;
+            }
+            return 0;
+        }
+
+        public uint GetUserObjects(UInt32 dwProcessId)
+        {
+            IntPtr hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, -1, dwProcessId);
+            if (hProcess != null)
+            {
+                uint cnt = GetGuiResources(hProcess, GR_USEROBJECTS);
+                CloseHandle(hProcess);
+                return cnt;
+            }
+            return 0;
+        }
+
+        private static Utils u;
+        private static CallBackPtr cb;
+
+        public bool FindThenExecute(CallBackPtr callback)
+        {
+            u = this;
+            cb = callback;
+
+            EnumWindows(Utils.EnumCallBack, 0);
+            return true;
+        }
+
+
+        public static int EnumCallBack(IntPtr hWnd, int lParam)
+        {
+            uint procId = 0;
+            uint result = GetWindowThreadProcessId(hWnd, ref procId);
+            StringBuilder sbClassName = new StringBuilder(256);
+            StringBuilder sbWindowText = new StringBuilder(256);
+            GetClassName(hWnd, sbClassName, sbClassName.Capacity);
+            GetWindowText(hWnd, sbWindowText, sbWindowText.Capacity);
+
+            bool isClassExist = false;
+            bool isTitleExist = false;
+
+            if (u.className == "")
+            {
+                isClassExist = true;
+            }
+            else if (sbClassName.ToString().ToLower().IndexOf(u.className) > -1)
+            {
+                isClassExist = true;
+            }
+
+            if (u.title == "")
+            {
+                isTitleExist = true;
+            }
+            else if (sbWindowText.ToString().ToLower().IndexOf(u.title) > -1)
+            {
+                isTitleExist = true;
+            }
+
+            if (isClassExist && isTitleExist)
+            {
+                cb(u, hWnd, sbClassName, sbWindowText);
+            }
+
+            return 1;
+        }        
     }
 }
