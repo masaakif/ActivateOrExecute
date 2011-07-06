@@ -44,10 +44,22 @@ namespace ActivateOrExecute
                 }
                 else if (arg.StartsWith("-verbose"))
                 {
-                    u.verbose = arg.Substring(9, arg.Length - 9);
+                    if (arg.Length < 9)
+                    {
+                        u.verbose = "true";
+                    }
+                    else
+                    {
+                        u.verbose = arg.Substring(9, arg.Length - 9);
+                    }
                 }
             }
-            
+
+            if (args.Length == 0)
+            {
+                System.Windows.Forms.MessageBox.Show("Argumens:\n-classname\n-title\n-command\n-arguments\n-verbose", "Usage");
+            }
+
             if (u.className != "" || u.title != "")
             {
                 u.FindThenExecute(callback);
@@ -56,7 +68,7 @@ namespace ActivateOrExecute
             u.ExecuteCommand();
         }
 
-        public static int callback(Utils u2, IntPtr hWnd, StringBuilder sbClassName, StringBuilder sbWindowText)
+        private static int callback(Utils u2, IntPtr hWnd, StringBuilder sbClassName, StringBuilder sbWindowText, ref object o)
         {
             if (u2.hasGUI(hWnd))
             {

@@ -7,6 +7,12 @@ using System.Windows.Forms;
 
 namespace WindowsAPIs
 {
+    class ModuleInfo
+    {
+        public string moduleName = "";
+        public string fullPath = "";
+    }
+
     class Utils
     {
         [DllImport("user32.dll")]
@@ -51,13 +57,14 @@ namespace WindowsAPIs
         [DllImport("user32", EntryPoint = "EnumWindows")]
         private static extern int EnumWindows(EnumerateWindowsCallback lpEnumFunc, int lParam);
 
-        public delegate int CallBackPtr(Utils u2, IntPtr hWnd, StringBuilder sbClassName, StringBuilder sbWindowText);
+        public delegate int CallBackPtr(Utils u2, IntPtr hWnd, StringBuilder sbClassName, StringBuilder sbWindowText, ref object o);
 
         [DllImport("user32.dll")]
         private static extern uint GetGuiResources(IntPtr hObject, uint uiFlags);
 
         [DllImport("psapi.dll")]
-        private static extern uint GetModuleFileNameEx(IntPtr hProcess, IntPtr hModule, [Out] StringBuilder lpBaseName, [In] [MarshalAs(UnmanagedType.U4)] int nSize);
+        private static extern uint GetModuleFileNameEx(IntPtr hProcess, IntPtr hModule, [Out] StringBuilder lpBaseName
+            , [In] [MarshalAs(UnmanagedType.U4)] int nSize);
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -154,7 +161,6 @@ namespace WindowsAPIs
 
         public void ExecuteCommand()
         {
-            //MessageBox.Show(System.Environment.GetEnvironmentVariable("PATH"));
             if (verbose == "true")
             {
                 string msg = "Class='" + className + "' ";
@@ -188,9 +194,10 @@ namespace WindowsAPIs
 
         private const int nChars = 1024;
 
-        public string getActiveWindowModuleName(bool isOnlyBinary = true)
+        public ModuleInfo getActiveWindowModuleName(bool isOnlyBinary = true)
         {
             StringBuilder sb = new StringBuilder(nChars);
+            ModuleInfo mi = new ModuleInfo();
 
             IntPtr hWnd = GetForegroundWindow();
             uint processId = 0;
@@ -199,13 +206,18 @@ namespace WindowsAPIs
             GetModuleFileNameEx(hProcess, IntPtr.Zero, sb, nChars);
             CloseHandle(hProcess);
 
+            mi.fullPath = sb.ToString();
+            
             if (isOnlyBinary)
             {
-                string[] ary = sb.ToString().Split('\\');
-                return ary[ary.Length-1];
+                string[] ary = mi.fullPath.Split('\\');
+                
+                mi.moduleName = ary[ary.Length-1];
+                return mi;
             }
 
-            return sb.ToString();
+            mi.moduleName = mi.fullPath;
+            return mi;
         }
 
         public uint GetWindowHandle(uint targetPID)
@@ -299,7 +311,8 @@ namespace WindowsAPIs
 
             if (isClassExist && isTitleExist)
             {
-                cb(u, hWnd, sbClassName, sbWindowText);
+                object o = new object();
+                cb(u, hWnd, sbClassName, sbWindowText, ref o);
             }
 
             return 1;
